@@ -201,7 +201,7 @@ local function createMinesweeperGUI()
         -- Информационная панель
         local infoFrame = Instance.new("Frame")
         infoFrame.Name = "InfoFrame"
-        infoFrame.Size = UDim2.new(1, -20, 0, 60)
+        infoFrame.Size = UDim2.new(1, -20, 0, 80)
         infoFrame.Position = UDim2.new(0, 10, 0, 110)
         infoFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
         infoFrame.BorderSizePixel = 0
@@ -222,8 +222,8 @@ local function createMinesweeperGUI()
         -- Таймер
         local timerLabel = Instance.new("TextLabel")
         timerLabel.Name = "TimerLabel"
-        timerLabel.Size = UDim2.new(0.3, -5, 1, 0)
-        timerLabel.Position = UDim2.new(0.35, 0, 0, 0)
+        timerLabel.Size = UDim2.new(0.3, -5, 0, 25)
+        timerLabel.Position = UDim2.new(0.35, 0, 0, -10)
         timerLabel.BackgroundTransparency = 1
         timerLabel.Text = "Время: 000"
         timerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -235,7 +235,7 @@ local function createMinesweeperGUI()
         local resetButton = Instance.new("TextButton")
         resetButton.Name = "ResetButton"
         resetButton.Size = UDim2.new(0, 50, 0, 50)
-        resetButton.Position = UDim2.new(0.7, 0, 0, 5)
+        resetButton.Position = UDim2.new(0.5, -25, 0, 20)
         resetButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
         resetButton.BorderSizePixel = 2
         resetButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
@@ -245,24 +245,12 @@ local function createMinesweeperGUI()
         resetButton.Font = Enum.Font.SourceSans
         resetButton.Parent = infoFrame
         
-        -- Кнопка начала игры
-        local startButton = Instance.new("TextButton")
-        startButton.Name = "StartButton"
-        startButton.Size = UDim2.new(0, 120, 0, 35)
-        startButton.Position = UDim2.new(0.85, -60, 0, 12)
-        startButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        startButton.BorderSizePixel = 0
-        startButton.Text = "Начать игру"
-        startButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        startButton.TextScaled = true
-        startButton.Font = Enum.Font.SourceSans
-        startButton.Parent = infoFrame
-        
+  
         -- Фрейм для игрового поля
         local gridFrame = Instance.new("Frame")
         gridFrame.Name = "GridFrame"
         gridFrame.Size = UDim2.new(0, GRID_SIZE * (CELL_SIZE + CELL_PADDING), 0, GRID_SIZE * (CELL_SIZE + CELL_PADDING))
-        gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 180)
+        gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 200)
         gridFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         gridFrame.BorderSizePixel = 0
         gridFrame.Parent = mainFrame
@@ -270,6 +258,7 @@ local function createMinesweeperGUI()
         -- Создаем ячейки
         local cells = {}
         local gameActive = false
+        local firstClick = true -- Отслеживание первого клика
         local minePositions = {}
         local revealedCells = {} -- Отслеживание открытых ячеек
         local startTime = 0
@@ -292,6 +281,37 @@ local function createMinesweeperGUI()
                 end
         end
         
+        -- Функция генерации мин (изменена для генерации после первого клика)
+        local function generateMines(excludeRow, excludeCol)
+                minePositions = {}
+                local mineCount = 0
+                
+                while mineCount < MINE_COUNT do
+                        local row = math.random(1, GRID_SIZE)
+                        local col = math.random(1, GRID_SIZE)
+                        
+                        -- Исключаем первую нажатую клетку и ее соседей от генерации мин
+                        local isExcluded = false
+                        for i = -1, 1 do
+                                for j = -1, 1 do
+                                        if row == excludeRow + i and col == excludeCol + j then
+                                                isExcluded = true
+                                                break
+                                        end
+                                end
+                                if isExcluded then break end
+                        end
+                        
+                        if not isExcluded then
+                                local key = row .. "_" .. col
+                                if not minePositions[key] then
+                                        minePositions[key] = true
+                                        mineCount = mineCount + 1
+                                end
+                        end
+                end
+        end
+        
         -- Функция создания сетки (вынесена наверх для правильной области видимости)
         local function createGrid()
                 -- Очищаем старые ячейки
@@ -307,20 +327,8 @@ local function createMinesweeperGUI()
                 cells = {}
                 revealedCells = {} -- Очищаем открытые ячейки
                 
-                -- Генерируем мины
+                -- НЕ генерируем мины здесь - они будут сгенерированы после первого клика
                 minePositions = {}
-                local mineCount = 0
-                
-                while mineCount < MINE_COUNT do
-                        local row = math.random(1, GRID_SIZE)
-                        local col = math.random(1, GRID_SIZE)
-                        
-                        local key = row .. "_" .. col
-                        if not minePositions[key] then
-                                minePositions[key] = true
-                                mineCount = mineCount + 1
-                        end
-                end
                 
                 -- Создаем ячейки
                 for row = 1, GRID_SIZE do
@@ -344,70 +352,93 @@ local function createMinesweeperGUI()
                                 
                                 -- Обработчики кликов
                                 cell.MouseButton1Click:Connect(function()
-                                        if gameActive then
-                                                local cellRow = cell:GetAttribute("Row")
-                                                local cellCol = cell:GetAttribute("Col")
-                                                local key = cellRow .. "_" .. cellCol
+                                        local cellRow = cell:GetAttribute("Row")
+                                        local cellCol = cell:GetAttribute("Col")
+                                        local key = cellRow .. "_" .. cellCol
+                                        
+                                        -- Если ячейка уже открыта, не делаем ничего
+                                        if revealedCells[key] then
+                                                return
+                                        end
+                                        
+                                        -- Проверяем первый клик
+                                        if firstClick then
+                                                firstClick = false
+                                                gameActive = true
                                                 
-                                                -- Если ячейка уже открыта, не делаем ничего
-                                                if revealedCells[key] then
-                                                        return
+                                                -- Генерируем мины, исключая первую клетку и ее соседей
+                                                generateMines(cellRow, cellCol)
+                                                
+                                                -- Запускаем таймер
+                                                startTime = tick()
+                                                elapsedTime = 0
+                                                timerConnection = RunService.Heartbeat:Connect(updateTimer)
+                                                
+                                                -- Показываем сообщение о начале игры
+                                                StarterGui:SetCore("ChatMakeSystemMessage", {
+                                                        Text = "🎮 Игра началась! Найдите все мины!";
+                                                        Color = Color3.fromRGB(0, 255, 0);
+                                                        Font = Enum.Font.SourceSans;
+                                                })
+                                        end
+                                        
+                                        if not gameActive then
+                                                return
+                                        end
+                                        
+                                        if minePositions[key] then
+                                                -- Попали на мину
+                                                cell.BackgroundColor3 = COLORS.MINE
+                                                cell.Text = "💣"
+                                                cell.TextColor3 = Color3.fromRGB(0, 0, 0)
+                                                gameActive = false
+                                                stopTimer()
+                                                resetButton.Text = "😵"
+                                                
+                                                -- Показываем все мины
+                                                for r = 1, GRID_SIZE do
+                                                        for c = 1, GRID_SIZE do
+                                                                local mineKey = r .. "_" .. c
+                                                                if minePositions[mineKey] and cells[r] and cells[r][c] then
+                                                                        cells[r][c].BackgroundColor3 = COLORS.MINE
+                                                                        cells[r][c].Text = "💣"
+                                                                        cells[r][c].TextColor3 = Color3.fromRGB(0, 0, 0)
+                                                                end
+                                                        end
                                                 end
                                                 
-                                                if minePositions[key] then
-                                                        -- Попали на мину
-                                                        cell.BackgroundColor3 = COLORS.MINE
-                                                        cell.Text = "💣"
-                                                        cell.TextColor3 = Color3.fromRGB(0, 0, 0)
+                                                -- Показываем сообщение о проигрыше
+                                                StarterGui:SetCore("ChatMakeSystemMessage", {
+                                                        Text = "💥 Игра окончена! Вы попали на мину!";
+                                                        Color = Color3.fromRGB(255, 0, 0);
+                                                        Font = Enum.Font.SourceSans;
+                                                })
+                                        else
+                                                -- Безопасная ячейка - открываем ее
+                                                revealEmptyCells(cellRow, cellCol, minePositions, cells, revealedCells)
+                                                
+                                                -- Проверяем победу
+                                                local safeCellsOpened = 0
+                                                local totalSafeCells = GRID_SIZE * GRID_SIZE - MINE_COUNT
+                                                
+                                                for r = 1, GRID_SIZE do
+                                                        for c = 1, GRID_SIZE do
+                                                                local checkKey = r .. "_" .. c
+                                                                if revealedCells[checkKey] then
+                                                                        safeCellsOpened = safeCellsOpened + 1
+                                                                end
+                                                        end
+                                                end
+                                                
+                                                if safeCellsOpened == totalSafeCells then
                                                         gameActive = false
                                                         stopTimer()
-                                                        resetButton.Text = "😵"
-                                                        
-                                                        -- Показываем все мины
-                                                        for r = 1, GRID_SIZE do
-                                                                for c = 1, GRID_SIZE do
-                                                                        local mineKey = r .. "_" .. c
-                                                                        if minePositions[mineKey] and cells[r] and cells[r][c] then
-                                                                                cells[r][c].BackgroundColor3 = COLORS.MINE
-                                                                                cells[r][c].Text = "💣"
-                                                                                cells[r][c].TextColor3 = Color3.fromRGB(0, 0, 0)
-                                                                        end
-                                                                end
-                                                        end
-                                                        
-                                                        -- Показываем сообщение о проигрыше
+                                                        resetButton.Text = "😎"
                                                         StarterGui:SetCore("ChatMakeSystemMessage", {
-                                                                Text = "💥 Игра окончена! Вы попали на мину!";
-                                                                Color = Color3.fromRGB(255, 0, 0);
+                                                                Text = "🎉 ПОБЕДА! Вы открыли все безопасные ячейки! Время: " .. elapsedTime .. " сек.";
+                                                                Color = Color3.fromRGB(0, 255, 0);
                                                                 Font = Enum.Font.SourceSans;
                                                         })
-                                                else
-                                                        -- Безопасная ячейка - открываем ее
-                                                        revealEmptyCells(cellRow, cellCol, minePositions, cells, revealedCells)
-                                                        
-                                                        -- Проверяем победу
-                                                        local safeCellsOpened = 0
-                                                        local totalSafeCells = GRID_SIZE * GRID_SIZE - MINE_COUNT
-                                                        
-                                                        for r = 1, GRID_SIZE do
-                                                                for c = 1, GRID_SIZE do
-                                                                        local checkKey = r .. "_" .. c
-                                                                        if revealedCells[checkKey] then
-                                                                                safeCellsOpened = safeCellsOpened + 1
-                                                                        end
-                                                                end
-                                                        end
-                                                        
-                                                        if safeCellsOpened == totalSafeCells then
-                                                                gameActive = false
-                                                                stopTimer()
-                                                                resetButton.Text = "😎"
-                                                                StarterGui:SetCore("ChatMakeSystemMessage", {
-                                                                        Text = "🎉 ПОБЕДА! Вы открыли все безопасные ячейки! Время: " .. elapsedTime .. " сек.";
-                                                                        Color = Color3.fromRGB(0, 255, 0);
-                                                                        Font = Enum.Font.SourceSans;
-                                                                })
-                                                        end
                                                 end
                                         end
                                 end)
@@ -442,9 +473,10 @@ local function createMinesweeperGUI()
         -- Функция сброса игры (вынесена после createGrid)
         local function resetGame()
                 gameActive = false
+                firstClick = true -- Сбрасываем флаг первого клика
                 stopTimer()
                 resetButton.Text = "🙂"
-                startButton.Visible = true
+              
                 timerLabel.Text = "Время: 000"
                 createGrid()
         end
@@ -466,7 +498,7 @@ local function createMinesweeperGUI()
                 
                 -- Обновляем размер игрового поля
                 gridFrame.Size = UDim2.new(0, GRID_SIZE * (CELL_SIZE + CELL_PADDING), 0, GRID_SIZE * (CELL_SIZE + CELL_PADDING))
-                gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 180)
+                gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 200)
                 
                 -- Сбрасываем игру
                 resetGame()
@@ -474,31 +506,12 @@ local function createMinesweeperGUI()
         
         difficultyDropdown.MouseButton1Click:Connect(changeDifficulty)
         
-        -- Обработчик начала игры
-        startButton.MouseButton1Click:Connect(function()
-                gameActive = true
-                startButton.Visible = false
-                resetButton.Text = "🙂"
-                startTime = tick()
-                elapsedTime = 0
-                
-                -- Создаем игровое поле
-                createGrid()
-                
-                -- Запускаем таймер
-                timerConnection = RunService.Heartbeat:Connect(updateTimer)
-                
-                -- Показываем сообщение
-                StarterGui:SetCore("ChatMakeSystemMessage", {
-                        Text = "🎮 Игра началась! Найдите все мины!";
-                        Color = Color3.fromRGB(0, 255, 0);
-                        Font = Enum.Font.SourceSans;
-                })
-        end)
+        -- Создаем начальное игровое поле
+        createGrid()
         
         -- Показываем сообщение об успешном создании
         StarterGui:SetCore("ChatMakeSystemMessage", {
-                Text = "✅ Сапер открыт! Выберите сложность и нажмите 'Начать игру'";
+                Text = "✅ Сапер открыт! Выберите сложность и нажмите на любую клетку для начала";
                 Color = Color3.fromRGB(0, 255, 0);
                 Font = Enum.Font.SourceSans;
         })
