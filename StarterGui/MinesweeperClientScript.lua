@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 
@@ -14,10 +15,28 @@ if not remoteEvent then
         return
 end
 
--- Игровые константы
-local GRID_SIZE = 8
-local CELL_SIZE = 40
+-- Настройки сложности
+local DIFFICULTIES = {
+        {
+                name = "Легкий",
+                size = 8,
+                mines = 10,
+                cellSize = 40
+        },
+        {
+                name = "Средний", 
+                size = 16,
+                mines = 40,
+                cellSize = 30
+        }
+}
+
+-- Глобальные переменные игры
+local currentDifficulty = 1 -- По умолчанию легкий
+local GRID_SIZE = DIFFICULTIES[currentDifficulty].size
+local CELL_SIZE = DIFFICULTIES[currentDifficulty].cellSize
 local CELL_PADDING = 3
+local MINE_COUNT = DIFFICULTIES[currentDifficulty].mines
 
 -- Цвета для ячеек
 local COLORS = {
@@ -122,8 +141,8 @@ local function createMinesweeperGUI()
         -- Основной фрейм
         local mainFrame = Instance.new("Frame")
         mainFrame.Name = "MainFrame"
-        mainFrame.Size = UDim2.new(0, 400, 0, 500)
-        mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+        mainFrame.Size = UDim2.new(0, 600, 0, 650)
+        mainFrame.Position = UDim2.new(0.5, -300, 0.5, -325)
         mainFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         mainFrame.BorderSizePixel = 0
         mainFrame.Parent = screenGui
@@ -157,11 +176,33 @@ local function createMinesweeperGUI()
                 screenGui:Destroy()
         end)
         
+        -- Панель сложности
+        local difficultyFrame = Instance.new("Frame")
+        difficultyFrame.Name = "DifficultyFrame"
+        difficultyFrame.Size = UDim2.new(1, -20, 0, 40)
+        difficultyFrame.Position = UDim2.new(0, 10, 0, 60)
+        difficultyFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+        difficultyFrame.BorderSizePixel = 0
+        difficultyFrame.Parent = mainFrame
+        
+        -- Выбор сложности
+        local difficultyDropdown = Instance.new("TextButton")
+        difficultyDropdown.Name = "DifficultyDropdown"
+        difficultyDropdown.Size = UDim2.new(0, 150, 0, 30)
+        difficultyDropdown.Position = UDim2.new(0, 5, 0, 5)
+        difficultyDropdown.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        difficultyDropdown.BorderSizePixel = 0
+        difficultyDropdown.Text = DIFFICULTIES[currentDifficulty].name
+        difficultyDropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+        difficultyDropdown.TextScaled = true
+        difficultyDropdown.Font = Enum.Font.SourceSans
+        difficultyDropdown.Parent = difficultyFrame
+        
         -- Информационная панель
         local infoFrame = Instance.new("Frame")
         infoFrame.Name = "InfoFrame"
-        infoFrame.Size = UDim2.new(1, -20, 0, 40)
-        infoFrame.Position = UDim2.new(0, 10, 0, 60)
+        infoFrame.Size = UDim2.new(1, -20, 0, 60)
+        infoFrame.Position = UDim2.new(0, 10, 0, 110)
         infoFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
         infoFrame.BorderSizePixel = 0
         infoFrame.Parent = mainFrame
@@ -169,33 +210,59 @@ local function createMinesweeperGUI()
         -- Счетчик мин
         local mineCounter = Instance.new("TextLabel")
         mineCounter.Name = "MineCounter"
-        mineCounter.Size = UDim2.new(0.5, -5, 1, 0)
+        mineCounter.Size = UDim2.new(0.3, -5, 1, 0)
         mineCounter.Position = UDim2.new(0, 0, 0, 0)
         mineCounter.BackgroundTransparency = 1
-        mineCounter.Text = "Мины: 10"
+        mineCounter.Text = "Мины: " .. MINE_COUNT
         mineCounter.TextColor3 = Color3.fromRGB(255, 255, 255)
         mineCounter.TextScaled = true
         mineCounter.Font = Enum.Font.SourceSans
         mineCounter.Parent = infoFrame
         
+        -- Таймер
+        local timerLabel = Instance.new("TextLabel")
+        timerLabel.Name = "TimerLabel"
+        timerLabel.Size = UDim2.new(0.3, -5, 1, 0)
+        timerLabel.Position = UDim2.new(0.35, 0, 0, 0)
+        timerLabel.BackgroundTransparency = 1
+        timerLabel.Text = "Время: 000"
+        timerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        timerLabel.TextScaled = true
+        timerLabel.Font = Enum.Font.SourceSans
+        timerLabel.Parent = infoFrame
+        
+        -- Кнопка сброса (смайлик)
+        local resetButton = Instance.new("TextButton")
+        resetButton.Name = "ResetButton"
+        resetButton.Size = UDim2.new(0, 50, 0, 50)
+        resetButton.Position = UDim2.new(0.7, 0, 0, 5)
+        resetButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+        resetButton.BorderSizePixel = 2
+        resetButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
+        resetButton.Text = "🙂"
+        resetButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+        resetButton.TextScaled = true
+        resetButton.Font = Enum.Font.SourceSans
+        resetButton.Parent = infoFrame
+        
         -- Кнопка начала игры
         local startButton = Instance.new("TextButton")
         startButton.Name = "StartButton"
         startButton.Size = UDim2.new(0, 120, 0, 35)
-        startButton.Position = UDim2.new(0.5, -60, 0, 110)
+        startButton.Position = UDim2.new(0.85, -60, 0, 12)
         startButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
         startButton.BorderSizePixel = 0
         startButton.Text = "Начать игру"
         startButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         startButton.TextScaled = true
         startButton.Font = Enum.Font.SourceSans
-        startButton.Parent = mainFrame
+        startButton.Parent = infoFrame
         
         -- Фрейм для игрового поля
         local gridFrame = Instance.new("Frame")
         gridFrame.Name = "GridFrame"
         gridFrame.Size = UDim2.new(0, GRID_SIZE * (CELL_SIZE + CELL_PADDING), 0, GRID_SIZE * (CELL_SIZE + CELL_PADDING))
-        gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 160)
+        gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 180)
         gridFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         gridFrame.BorderSizePixel = 0
         gridFrame.Parent = mainFrame
@@ -205,11 +272,37 @@ local function createMinesweeperGUI()
         local gameActive = false
         local minePositions = {}
         local revealedCells = {} -- Отслеживание открытых ячеек
+        local startTime = 0
+        local elapsedTime = 0
+        local timerConnection = nil
         
+        -- Функция обновления таймера
+        local function updateTimer()
+                if gameActive then
+                        elapsedTime = math.floor(tick() - startTime)
+                        timerLabel.Text = "Время: " .. string.format("%03d", elapsedTime)
+                end
+        end
+        
+        -- Функция остановки таймера
+        local function stopTimer()
+                if timerConnection then
+                        timerConnection:Disconnect()
+                        timerConnection = nil
+                end
+        end
+        
+        -- Функция создания сетки (вынесена наверх для правильной области видимости)
         local function createGrid()
                 -- Очищаем старые ячейки
-                for _, cell in pairs(cells) do
-                        cell:Destroy()
+                for _, cellRow in pairs(cells) do
+                        if type(cellRow) == "table" then
+                                for _, cell in pairs(cellRow) do
+                                        if cell and cell.Destroy then
+                                                cell:Destroy()
+                                        end
+                                end
+                        end
                 end
                 cells = {}
                 revealedCells = {} -- Очищаем открытые ячейки
@@ -218,7 +311,7 @@ local function createMinesweeperGUI()
                 minePositions = {}
                 local mineCount = 0
                 
-                while mineCount < 10 do
+                while mineCount < MINE_COUNT do
                         local row = math.random(1, GRID_SIZE)
                         local col = math.random(1, GRID_SIZE)
                         
@@ -267,12 +360,14 @@ local function createMinesweeperGUI()
                                                         cell.Text = "💣"
                                                         cell.TextColor3 = Color3.fromRGB(0, 0, 0)
                                                         gameActive = false
+                                                        stopTimer()
+                                                        resetButton.Text = "😵"
                                                         
                                                         -- Показываем все мины
                                                         for r = 1, GRID_SIZE do
                                                                 for c = 1, GRID_SIZE do
                                                                         local mineKey = r .. "_" .. c
-                                                                        if minePositions[mineKey] and cells[r][c] then
+                                                                        if minePositions[mineKey] and cells[r] and cells[r][c] then
                                                                                 cells[r][c].BackgroundColor3 = COLORS.MINE
                                                                                 cells[r][c].Text = "💣"
                                                                                 cells[r][c].TextColor3 = Color3.fromRGB(0, 0, 0)
@@ -292,7 +387,7 @@ local function createMinesweeperGUI()
                                                         
                                                         -- Проверяем победу
                                                         local safeCellsOpened = 0
-                                                        local totalSafeCells = GRID_SIZE * GRID_SIZE - 10
+                                                        local totalSafeCells = GRID_SIZE * GRID_SIZE - MINE_COUNT
                                                         
                                                         for r = 1, GRID_SIZE do
                                                                 for c = 1, GRID_SIZE do
@@ -305,8 +400,10 @@ local function createMinesweeperGUI()
                                                         
                                                         if safeCellsOpened == totalSafeCells then
                                                                 gameActive = false
+                                                                stopTimer()
+                                                                resetButton.Text = "😎"
                                                                 StarterGui:SetCore("ChatMakeSystemMessage", {
-                                                                        Text = "🎉 ПОБЕДА! Вы открыли все безопасные ячейки!";
+                                                                        Text = "🎉 ПОБЕДА! Вы открыли все безопасные ячейки! Время: " .. elapsedTime .. " сек.";
                                                                         Color = Color3.fromRGB(0, 255, 0);
                                                                         Font = Enum.Font.SourceSans;
                                                                 })
@@ -342,13 +439,54 @@ local function createMinesweeperGUI()
                 end
         end
         
+        -- Функция сброса игры (вынесена после createGrid)
+        local function resetGame()
+                gameActive = false
+                stopTimer()
+                resetButton.Text = "🙂"
+                startButton.Visible = true
+                timerLabel.Text = "Время: 000"
+                createGrid()
+        end
+        
+        -- Обработчик кнопки сброса
+        resetButton.MouseButton1Click:Connect(function()
+                resetGame()
+        end)
+        
+        -- Обработчик изменения сложности
+        local function changeDifficulty()
+                currentDifficulty = currentDifficulty % 2 + 1 -- Циклический перебор 1->2->1
+                GRID_SIZE = DIFFICULTIES[currentDifficulty].size
+                CELL_SIZE = DIFFICULTIES[currentDifficulty].cellSize
+                MINE_COUNT = DIFFICULTIES[currentDifficulty].mines
+                
+                difficultyDropdown.Text = DIFFICULTIES[currentDifficulty].name
+                mineCounter.Text = "Мины: " .. MINE_COUNT
+                
+                -- Обновляем размер игрового поля
+                gridFrame.Size = UDim2.new(0, GRID_SIZE * (CELL_SIZE + CELL_PADDING), 0, GRID_SIZE * (CELL_SIZE + CELL_PADDING))
+                gridFrame.Position = UDim2.new(0.5, -(GRID_SIZE * (CELL_SIZE + CELL_PADDING)) / 2, 0, 180)
+                
+                -- Сбрасываем игру
+                resetGame()
+        end
+        
+        difficultyDropdown.MouseButton1Click:Connect(changeDifficulty)
+        
         -- Обработчик начала игры
         startButton.MouseButton1Click:Connect(function()
                 gameActive = true
                 startButton.Visible = false
+                resetButton.Text = "🙂"
+                startTime = tick()
+                elapsedTime = 0
                 
                 -- Создаем игровое поле
                 createGrid()
+                
+                -- Запускаем таймер
+                timerConnection = RunService.Heartbeat:Connect(updateTimer)
                 
                 -- Показываем сообщение
                 StarterGui:SetCore("ChatMakeSystemMessage", {
@@ -360,7 +498,7 @@ local function createMinesweeperGUI()
         
         -- Показываем сообщение об успешном создании
         StarterGui:SetCore("ChatMakeSystemMessage", {
-                Text = "✅ Сапер открыт! Нажмите 'Начать игру'";
+                Text = "✅ Сапер открыт! Выберите сложность и нажмите 'Начать игру'";
                 Color = Color3.fromRGB(0, 255, 0);
                 Font = Enum.Font.SourceSans;
         })
@@ -372,5 +510,3 @@ end
 remoteEvent.OnClientEvent:Connect(function()
         createMinesweeperGUI()
 end)
-
-print("Minesweeper Client Script initialized!")
